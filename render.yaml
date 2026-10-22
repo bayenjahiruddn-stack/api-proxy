@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: api-proxy
+    env: node
+    buildCommand: ""
+    startCommand: "node index.js"
