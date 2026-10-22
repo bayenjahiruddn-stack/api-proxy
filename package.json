@@ -1,9 +1,10 @@
 {
   "name": "api-proxy",
   "version": "1.0.0",
-  "description": "Firebase API Proxy",
+  "description": "Vercel API Proxy for The Viper Cheats",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
-  }
+  },
+  "dependencies": {}
 }
