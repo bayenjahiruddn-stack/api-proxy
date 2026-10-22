@@ -1,0 +1,9 @@
+{
+  "name": "api-proxy",
+  "version": "1.0.0",
+  "description": "Firebase API Proxy",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  }
+}
