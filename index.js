@@ -13,24 +13,51 @@ export default async function handler(req, res) {
         return res.status(405).json({ status: 'error', message: 'Method not allowed' });
     }
 
+    // 🚨 এখানেই আসল ফিক্স করা হয়েছে (Form-Data এবং JSON দুটোই চেক করবে)
     let body = req.body;
     if (typeof body === 'string') {
-        try { body = JSON.parse(body); } catch (e) { body = {}; }
+        try {
+            body = JSON.parse(body);
+        } catch (e) {
+            const params = new URLSearchParams(body);
+            body = Object.fromEntries(params);
+        }
     }
 
     const { action, key } = body || {};
 
     try {
-        if (action === 'verifyKey') {
+        // ১. মেইনটেন্যান্স চেক
+        if (action === 'checkMaintenance') {
+            const maintURL = "https://dripwire-f541e-default-rtdb.asia-southeast1.firebasedatabase.app/maintenance_settings.json";
+
+            const maintData = await new Promise((resolve, reject) => {
+                https.get(maintURL, (response) => {
+                    let data = '';
+                    response.on('data', chunk => data += chunk);
+                    response.on('end', () => {
+                        try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+                    });
+                }).on('error', err => reject(err));
+            });
+
+            return res.status(200).json({ 
+                isMaintenance: maintData ? !!maintData.isMaintenance : false, 
+                message: maintData ? (maintData.message || "System is currently under maintenance.") : "", 
+                link: maintData ? (maintData.link || "") : "" 
+            });
+        } 
+        
+        // ২. লাইসেন্স কি ভেরিফাই
+        else if (action === 'verifyKey') {
             if (!key) {
                 return res.status(400).json({ status: 'error', message: 'Please enter a key!' });
             }
 
-            const firebaseBaseUrl = "https://dripwire-f541e-default-rtdb.asia-southeast1.firebasedatabase.app/random_keys.json";
+            const firebaseURL = "https://dripwire-f541e-default-rtdb.asia-southeast1.firebasedatabase.app/random_keys.json";
             
-            // ১. ডেটাবেস থেকে ডেটা আনা
             const firebaseData = await new Promise((resolve, reject) => {
-                https.get(firebaseBaseUrl, (response) => {
+                https.get(firebaseURL, (response) => {
                     let data = '';
                     response.on('data', chunk => data += chunk);
                     response.on('end', () => {
@@ -45,7 +72,7 @@ export default async function handler(req, res) {
 
             let keyFound = false;
             let matchedUser = null;
-            let matchedDbId = null; // ডেটাবেস আইডি সেভ করার জন্য
+            let matchedDbId = null;
 
             for (const [dbId, userObj] of Object.entries(firebaseData)) {
                 if (userObj.accessKey === key || userObj.username === key) {
@@ -61,7 +88,6 @@ export default async function handler(req, res) {
                     return res.status(200).json({ status: 'error', message: 'This key has been disabled!' });
                 }
 
-                // ২. যদি প্রথমবার লগইন হয়, তবে Firebase-এ firstLoginAt সেভ করা
                 if (!matchedUser.firstLoginAt) {
                     const now = Date.now();
                     const updateUrl = `https://dripwire-f541e-default-rtdb.asia-southeast1.firebasedatabase.app/random_keys/${matchedDbId}.json`;
@@ -83,11 +109,9 @@ export default async function handler(req, res) {
                         req.end();
                     });
                     
-                    // আপডেট হওয়া টাইমারটি রেসপন্সে পাঠানো
                     matchedUser.firstLoginAt = now; 
                 }
 
-                // ৩. বাকি থাকা টাইম ক্যালকুলেট করা
                 const expirationTime = matchedUser.firstLoginAt + (matchedUser.durationMs || 86400000);
                 const remainingMs = expirationTime - Date.now();
 
@@ -104,11 +128,6 @@ export default async function handler(req, res) {
                 return res.status(200).json({ status: 'error', message: 'Invalid or Expired Key!' });
             }
         } 
-        
-        else if (action === 'checkMaintenance') {
-            // ... (আপনার আগের checkMaintenance কোডটি এখানে থাকবে, সেটি ঠিকই আছে)
-        } 
-        
         else {
             return res.status(400).json({ status: 'error', message: 'Invalid action: ' + (action || 'undefined') });
         }
