@@ -2,8 +2,13 @@ import https from 'https';
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    // 🚨 UptimeRobot-এর জন্য GET রিকোয়েস্ট
+    if (req.method === 'GET') {
+        return res.status(200).json({ status: 'ok', message: 'Server is running perfectly' });
+    }
 
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
@@ -13,7 +18,7 @@ export default async function handler(req, res) {
         return res.status(405).json({ status: 'error', message: 'Method not allowed' });
     }
 
-    // 🚨 এখানেই আসল ফিক্স করা হয়েছে (Form-Data এবং JSON দুটোই চেক করবে)
+    // ডেটা রিসিভ করা
     let body = req.body;
     if (typeof body === 'string') {
         try {
@@ -30,7 +35,6 @@ export default async function handler(req, res) {
         // ১. মেইনটেন্যান্স চেক
         if (action === 'checkMaintenance') {
             const maintURL = "https://dripwire-f541e-default-rtdb.asia-southeast1.firebasedatabase.app/maintenance_settings.json";
-
             const maintData = await new Promise((resolve, reject) => {
                 https.get(maintURL, (response) => {
                     let data = '';
@@ -43,7 +47,7 @@ export default async function handler(req, res) {
 
             return res.status(200).json({ 
                 isMaintenance: maintData ? !!maintData.isMaintenance : false, 
-                message: maintData ? (maintData.message || "System is currently under maintenance.") : "", 
+                message: maintData ? (maintData.message || "System is under maintenance.") : "", 
                 link: maintData ? (maintData.link || "") : "" 
             });
         } 
@@ -55,7 +59,6 @@ export default async function handler(req, res) {
             }
 
             const firebaseURL = "https://dripwire-f541e-default-rtdb.asia-southeast1.firebasedatabase.app/random_keys.json";
-            
             const firebaseData = await new Promise((resolve, reject) => {
                 https.get(firebaseURL, (response) => {
                     let data = '';
@@ -96,19 +99,12 @@ export default async function handler(req, res) {
                     await new Promise((resolve, reject) => {
                         const req = https.request(updateUrl, {
                             method: 'PATCH',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Content-Length': Buffer.byteLength(patchData)
-                            }
-                        }, (res) => {
-                            res.on('data', () => {});
-                            res.on('end', resolve);
-                        });
+                            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(patchData) }
+                        }, (res) => { res.on('data', () => {}); res.on('end', resolve); });
                         req.on('error', reject);
                         req.write(patchData);
                         req.end();
                     });
-                    
                     matchedUser.firstLoginAt = now; 
                 }
 
@@ -119,11 +115,7 @@ export default async function handler(req, res) {
                     return res.status(200).json({ status: 'error', message: 'This key has expired!' });
                 }
 
-                return res.status(200).json({ 
-                    status: 'success', 
-                    durationMs: remainingMs, 
-                    message: 'Login Successful' 
-                });
+                return res.status(200).json({ status: 'success', durationMs: remainingMs, message: 'Login Successful' });
             } else {
                 return res.status(200).json({ status: 'error', message: 'Invalid or Expired Key!' });
             }
@@ -131,7 +123,6 @@ export default async function handler(req, res) {
         else {
             return res.status(400).json({ status: 'error', message: 'Invalid action: ' + (action || 'undefined') });
         }
-
     } catch (error) {
         return res.status(500).json({ status: 'error', message: error.message });
     }
